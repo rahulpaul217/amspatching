@@ -1,0 +1,71 @@
+import os
+from azure.common.credentials import ServicePrincipalCredentials
+from azure.mgmt.compute import ComputeManagementClient
+from azure.mgmt.update import UpdateManagementClient
+from datetime import datetime, timedelta
+
+# Azure subscription credentials
+subscription_id = os.environ.get('AZURE_SUBSCRIPTION_ID')
+client_id = os.environ.get('AZURE_CLIENT_ID')
+client_secret = os.environ.get('AZURE_CLIENT_SECRET')
+tenant_id = os.environ.get('AZURE_TENANT_ID')
+
+# Authenticate with Azure using Service Principal credentials
+credentials = ServicePrincipalCredentials(client_id=client_id,
+                                          secret=client_secret,
+                                          tenant=tenant_id)
+
+# Set the Azure context
+compute_client = ComputeManagementClient(credentials, subscription_id)
+update_client = UpdateManagementClient(credentials, subscription_id)
+
+# Set the report timeframe
+start_date = datetime(2023, 2, 1)
+end_date = datetime(2023, 2, 28)
+
+# Get all virtual machines in the subscription
+vms = compute_client.virtual_machines.list_all()
+
+# Loop through each virtual machine and get the update compliance
+for vm in vms:
+    resource_group = vm.id.split('/')[4]
+    vm_name = vm.name
+    update_management = update_client.update_management
+    compliance = update_management.get_update_compliance(resource_group, vm_name, start_date, end_date)
+
+    # Print the compliance report for each virtual machine
+    print('Report Period:', start_date.strftime('%B %d, %Y'), '-', end_date.strftime('%B %d, %Y'))
+    print('Virtual Machine Name:', vm_name)
+    print('Resource Group:', resource_group)
+    print()
+    print('Update Compliance Summary:')
+    print('-' * 46)
+    print('Total Updates:', compliance.total_count)
+    print('Installed Updates:', compliance.installed_count)
+    print('Missing Updates:', compliance.missing_count)
+    print('Failed Updates:', compliance.failed_count)
+    print()
+    print('Update Compliance by Category:')
+    print('-' * 50)
+    print('{:<30s}{:<10s}{:<10s}'.format('Category', 'Installed', 'Missing'))
+    for category in compliance.categories:
+        print('{:<30s}{:<10d}{:<10d}'.format(category.name, category.installed_count, category.missing_count))
+    print()
+    print('Update Compliance by Severity:')
+    print('-' * 50)
+    print('{:<30s}{:<10s}{:<10s}'.format('Severity', 'Installed', 'Missing'))
+    for severity in compliance.severities:
+        print('{:<30s}{:<10d}{:<10d}'.format(severity.name, severity.installed_count, severity.missing_count))
+    print()
+    print('Update Compliance by Classification:')
+    print('-' * 50)
+    print('{:<30s}{:<10s}{:<10s}'.format('Classification', 'Installed', 'Missing'))
+    for classification in compliance.classifications:
+        print('{:<30s}{:<10d}{:<10d}'.format(classification.name, classification.installed_count, classification.missing_count))
+    print()
+    print('Update Compliance by Computer Group:')
+    print('-' * 50)
+    print('{:<30s}{:<10s}{:<10s}'.format('Computer Group', 'Installed', 'Missing'))
+    for group in compliance.groups:
+        print('{:<30s}{:<10d}{:<10d}'.format(group.name, group.installed_count, group.missing_count))
+    print('-' * 50)
